@@ -2,7 +2,7 @@ import PySimpleGUI as sg
 import os
 
 def _icon(fname):
-    return os.path.join(os.path.dirname(__file__), 'icons', fname)
+    return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'icons', fname)
 
 class UIConfig:
     # fonts

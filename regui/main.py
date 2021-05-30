@@ -6,8 +6,8 @@
 import os
 import PySimpleGUI as sg
 from regolith.schemas import SCHEMAS, EXEMPLARS
-from regolith.gui.config_ui import UIConfig
 from regolith.fsclient import load_yaml, load_json, dump_yaml, dump_json
+from config_ui import UIConfig
 import yaml
 
 # _static globals
@@ -19,6 +19,7 @@ IGNORE_KEYS = [DESCRIPTION_KEY, ID_KEY]
 # dynamic globals
 POPOUT_ERROR = False
 VERBOSE = 0
+
 
 def load(filepath, _type=LOADER_TYPE):
     """ load catalog """
@@ -56,7 +57,7 @@ class DataBase:
 
     @staticmethod
     def get_default_path():
-        defaults = os.path.join(os.path.dirname(__file__), 'defaults', 'dbs_path.yml')
+        defaults = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'dbs_path.yml')
         return local_loader(defaults)['dbs_path']
 
     def get_people(self):
@@ -971,6 +972,7 @@ class GUI(UIConfig, Messaging):
             else:
                 skel_dict.update({k: str()})
         return skel_dict
+
 
 if __name__ == '__main__':
     GUI()()
