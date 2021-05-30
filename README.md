@@ -12,6 +12,7 @@
 - Filtration criteria need unique setup for each catalog
 
 #### Usage
+- setup path to local database under `config/dbs_path.yml` and change the value for `dbs_path` to the database.
 - window #1
     1. Set path to database
         1. Using local: set the path to `/rg-db-group/db`

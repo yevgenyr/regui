@@ -973,10 +973,8 @@ class GUI(UIConfig, Messaging):
                 skel_dict.update({k: str()})
         return skel_dict
 
-
 def main():
     GUI()()
-
 
 if __name__ == '__main__':
     main()
