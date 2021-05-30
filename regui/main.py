@@ -7,7 +7,7 @@ import os
 import PySimpleGUI as sg
 from regolith.schemas import SCHEMAS, EXEMPLARS
 from regolith.fsclient import load_yaml, load_json, dump_yaml, dump_json
-from config_ui import UIConfig
+from .config_ui import UIConfig
 import yaml
 
 # _static globals
@@ -974,5 +974,9 @@ class GUI(UIConfig, Messaging):
         return skel_dict
 
 
-if __name__ == '__main__':
+def main():
     GUI()()
+
+
+if __name__ == '__main__':
+    main()
