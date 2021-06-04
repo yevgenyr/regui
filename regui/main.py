@@ -563,12 +563,10 @@ class GUI(UIConfig, Messaging):
         layout.append([sg.Input(DataBase.get_default_path(),
                                 size=(50, 1), key="_db_path_", font=self.font_9, enable_events=True),
                        sg.Button('set root', key='_set_root_')])
-        # layout.append([sg.Button("explore databases", key="_explore_")])
         gl.output_msg_lo()
-        # layout.append([sg.T("")])
         layout.append([sg.T("What Database you would like to explore?")])
         layout.append([sg.DropDown([], key="_existing_dbs_", enable_events=True, readonly=True)])
-        layout.append([sg.Button("submit")])
+        layout.append([sg.Button("explore")])
 
         # build window
         window = sg.Window("select a database", layout, resizable=False, element_justification='center', finalize=True)
@@ -588,7 +586,7 @@ class GUI(UIConfig, Messaging):
                 DataBase.set_default_path(self.dbs_path)
                 sg.popup_quick('set and saved!')
 
-            if first or self.dbs_path:
+            if first or event == "_set_root_":
                 db_files = list()
                 self.dbs_path = values['_db_path_']
                 if self.dbs_path:
@@ -623,7 +621,7 @@ class GUI(UIConfig, Messaging):
                 else:
                     self.win_msg(window, "Path is not specified")
 
-            if event == "submit":
+            if event == "explore":
                 if values["_existing_dbs_"]:
                     self.selected_db = values["_existing_dbs_"]
                     self.db_fpath = os.path.join(self.dbs_path, self.selected_db)
