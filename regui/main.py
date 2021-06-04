@@ -48,6 +48,11 @@ def local_loader(path):
     with open(path, 'r') as fp:
         return yaml.safe_load(fp)
 
+def local_dumper(path, data):
+    """ dumps yaml config files, such as defaults """
+    with open(path, 'w') as fp:
+        return yaml.safe_dump(data, fp)
+
 
 def parse_time(_time):
     if not isinstance(_time, datetime.date):
@@ -69,6 +74,12 @@ class DataBase:
     def get_default_path():
         defaults = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'dbs_path.yml')
         return local_loader(defaults)['dbs_path']
+
+    @staticmethod
+    def set_default_path(path):
+        defaults = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'dbs_path.yml')
+        data = {'dbs_path': path}
+        local_dumper(defaults, data)
 
     def get_people(self):
         """ get people from people database"""
@@ -462,7 +473,7 @@ class GlobalLayouts(UIConfig):
                     if ee.type:
                         el.types_lo(ee.type)
                         tooltip += f'\ntype: {ee.type}'
-                        if ee.schema:
+                        if ee.schema or ee.type == 'dict':
                             el.nested_schema_lo(tooltip=tooltip)
                         elif ee.type == 'string':
                             el.input_lo(tooltip=tooltip)
@@ -549,15 +560,14 @@ class GUI(UIConfig, Messaging):
         gl.title_lo(title)
 
         layout.append([sg.T("Where the Databases are located?")])
-        layout.append([sg.T("Path", tooltip="path to "),
-                       sg.Input(DataBase.get_default_path(),
-                                size=(50, 1), key="db_path", font=self.font_9, enable_events=True),
-                       sg.FolderBrowse()])
-        layout.append([sg.Button("explore databases", key="_explore_")])
+        layout.append([sg.Input(DataBase.get_default_path(),
+                                size=(50, 1), key="_db_path_", font=self.font_9, enable_events=True),
+                       sg.Button('set root', key='_set_root_')])
+        # layout.append([sg.Button("explore databases", key="_explore_")])
+        gl.output_msg_lo()
         layout.append([sg.T("")])
         layout.append([sg.T("What Database you would like to explore?")])
         layout.append([sg.DropDown([], key="_existing_dbs_", enable_events=True, readonly=True)])
-        gl.output_msg_lo()
         layout.append([sg.Button("submit")])
 
         # build window
@@ -568,13 +578,22 @@ class GUI(UIConfig, Messaging):
         while True:
             event, values = window.read(timeout=50)
 
-            if event == "_explore_" or first:
-                db_files = list()
-                self.dbs_path = values['db_path']
+            if event == "_set_root_":
+                if not values['_db_path_']:
+                    path = sg.popup_get_folder('', no_window=True)
+                    if path:
+                        window['_db_path_'].update(value=path)
+                        window.finalize()
+                self.dbs_path = values['_db_path_']
+                DataBase.set_default_path(self.dbs_path)
 
+            if first or self.dbs_path:
+                db_files = list()
+                self.dbs_path = values['_db_path_']
                 if self.dbs_path:
 
                     if os.path.isdir(self.dbs_path):
+                        self.win_msg(window, "")
                         os.chdir(self.dbs_path)
                         files = os.listdir(self.dbs_path)
                         count_must_exist = len(self.must_exist)
@@ -597,7 +616,8 @@ class GUI(UIConfig, Messaging):
                                                      f"must exist files: {self.must_exist}")
 
                     else:
-                        self.win_msg(window, "Not existing dir")
+                        window['_existing_dbs_'].update(values=[], size=(1, 1))
+                        self.win_msg(window, "Non-existing root")
 
                 else:
                     self.win_msg(window, "Path is not specified")
@@ -741,8 +761,11 @@ class GUI(UIConfig, Messaging):
                 if values["_id"]:
                     nested_entry = event.replace("@enter_schema_", '')
                     nested_type = schema[nested_entry]["type"]
-                    nested_schema = schema[nested_entry]["schema"]
-
+                    try:
+                        nested_schema = schema[nested_entry]["schema"]
+                    except:
+                        self._quick_error(f"no defined schema.SCHEMA for '{nested_entry}'")
+                        continue
                     #  TODO - fix in SCHEMA so after list of dict it is be clear that there is a need to dig deeper
                     if 'schema' in nested_schema and 'type' in nested_schema:
                         nested_schema = nested_schema['schema']
