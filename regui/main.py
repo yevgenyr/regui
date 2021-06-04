@@ -565,7 +565,7 @@ class GUI(UIConfig, Messaging):
                        sg.Button('set root', key='_set_root_')])
         # layout.append([sg.Button("explore databases", key="_explore_")])
         gl.output_msg_lo()
-        layout.append([sg.T("")])
+        # layout.append([sg.T("")])
         layout.append([sg.T("What Database you would like to explore?")])
         layout.append([sg.DropDown([], key="_existing_dbs_", enable_events=True, readonly=True)])
         layout.append([sg.Button("submit")])
@@ -586,6 +586,7 @@ class GUI(UIConfig, Messaging):
                         window.finalize()
                 self.dbs_path = values['_db_path_']
                 DataBase.set_default_path(self.dbs_path)
+                sg.popup_quick('set and saved!')
 
             if first or self.dbs_path:
                 db_files = list()
