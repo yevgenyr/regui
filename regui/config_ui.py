@@ -23,7 +23,7 @@ class UIConfig:
     entry_size = (20, 1)
     types_size = (20, 1)
     input_size = (60, 1)
-    multyline_size = (60, 3)
+    multyline_size = (60, 2)
     edit_list_len = 75
 
 
@@ -42,6 +42,7 @@ class UIConfig:
     RED_COLOR = '#f48c84'
     GREEN_COLOR = '#abecab'
     GREY_COLOR = "#d9d9d9"
+    DARK_BLUE = "#293194"
 
     # icons
 

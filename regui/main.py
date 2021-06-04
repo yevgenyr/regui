@@ -7,14 +7,16 @@ import os
 import PySimpleGUI as sg
 from regolith.schemas import SCHEMAS, EXEMPLARS
 from regolith.fsclient import load_yaml, load_json, dump_yaml, dump_json
-from .config_ui import UIConfig
+from regui.config_ui import UIConfig
 import yaml
+import datetime
 
 # _static globals
 LOADER_TYPE = 'yaml'  # "json"
 DESCRIPTION_KEY = '_description'
 ID_KEY = '_id'
 IGNORE_KEYS = [DESCRIPTION_KEY, ID_KEY]
+TIME_FORMAT = '%Y-%m-%d'
 
 # dynamic globals
 POPOUT_ERROR = False
@@ -45,6 +47,14 @@ def local_loader(path):
     """ loads yaml config files, such as defaults """
     with open(path, 'r') as fp:
         return yaml.safe_load(fp)
+
+
+def parse_time(_time):
+    if not isinstance(_time, datetime.date):
+        if isinstance(_time, str):
+            _time = datetime.datetime.strptime(_time, TIME_FORMAT)
+    atime = float(_time.strftime("%s"))
+    return atime
 
 
 class DataBase:
@@ -94,6 +104,105 @@ class Messaging:
             self.r_msg('-----------------')
             self.r_msg(msg)
             self.r_msg('-----------------')
+
+
+class Query(Messaging):
+    AND = "&&"
+    LARGER = ">>"
+    SMALLER = "<<"
+    EQUAL = "=="
+    _special = [LARGER, SMALLER, EQUAL]
+
+    def query_parser(self, query_text: str) -> list:
+        """
+        parse query text
+
+        **q_language**:
+        AND = "&&"
+        LARGER = ">>"
+        SMALLER = "<<"
+        EQUAL = "=="
+
+        Parameters
+        ----------
+        query_text: str
+            Text to query
+            Example: "end_date << 2020-10-20 && state == finished"
+
+        Returns
+        -------
+        list: [[key, value, relation]] pairs of the parsed text
+        """
+
+        # init
+        q_list = list()
+
+        # split to statements
+        statements = query_text.split(self.AND)
+        # parse statements
+        for s in statements:
+            found = -1
+            for q in self._special:
+                if len(s.split(q)) == 2:
+                    found += 1
+                    k, v = s.split(q)
+                    q_item = (k.strip(), v.strip(), q)
+            if found == 0:
+                q_list.append(q_item)
+
+        return q_list
+
+    def quert_filter(self, parsed_queries, target) -> list:
+        """
+        filter of a target dict
+
+        Parameters
+        ----------
+        parsed_query: list
+            the output list from query_parser: [(key, value, relation)]
+        target: dict
+            the target dict
+
+        Returns
+        -------
+        filters list of maching _ids
+        """
+        matches = list()
+        _first = True
+        for k, v, q in parsed_queries:
+            _ok = False
+            _matches = list()
+            for _id, items in target.items():
+                if k in items:
+                    _ok = True
+                    try:
+                        if q == self.LARGER:
+                            if (parse_time(items[k]) - parse_time(v)) > 0:
+                                _matches.append(_id)
+                        elif q == self.SMALLER:
+                            if (parse_time(items[k]) - parse_time(v)) < 0:
+                                _matches.append(_id)
+                        elif q == self.EQUAL:
+                            if v == items[k]:
+                                _matches.append(_id)
+
+                    except:
+                        sg.popup_error("ERROR: query error", non_blocking=True, auto_close_duration=3)
+                        break
+                        # self.r_msg("bad query")
+                        # continue
+
+            # intersection
+            if _first:
+                matches = _matches
+                _first = False
+            else:
+                matches = list(set(_matches) & set(matches))
+
+            if not _ok:
+                self.y_msg(f"Bad query: non existing key '{k}')")
+
+        return matches
 
 
 class EntryElements(Messaging):
@@ -309,7 +418,7 @@ class GlobalLayouts(UIConfig):
         self.layout.append([sg.T("", key="_OUTPUT_", text_color="red", size=(50, 1))])
 
     def _id_lo(self):
-        self.layout.append([sg.T("Select _id:", text_color=self.RED_COLOR)])
+        self.layout.append([sg.T("Select _id:", text_color=self.DARK_BLUE)])
         self.layout[-1].extend([sg.DropDown([], key="_id", enable_events=True, readonly=True,
                                             size=self.selector_long_size)])
 
@@ -394,6 +503,10 @@ class FilterLayouts(UIConfig):
     def title_lo(self):
         self.layout.append([sg.T("Filter by:")])
 
+    def query_input_lo(self):
+        self.layout.append([sg.Multiline('', size=self.multyline_size, key='_query_',
+                                         tooltip='examples: "begin_date << 2020-10-20 && state == finished"')])
+
     def projecta(self, people: list):
         """
         projecta ui builder
@@ -422,6 +535,7 @@ class GUI(UIConfig, Messaging):
         self.ext = DataBase.ext
         self.must_exist = DataBase.MUST_EXIST
         self.db = dict()
+        self.all_ids = list()
         self.entry_keys = list()
 
     def __call__(self):
@@ -548,10 +662,10 @@ class GUI(UIConfig, Messaging):
         if data_title == "projecta":
             # -- load filtration databases
             people = DataBase(self.db_fpath).get_people()
-            fl.title_lo()
+            # fl.title_lo()
             fl.projecta(people)
-            layout[-1].extend([gl.icon_button(icon=self.FILTER_ICON, key='_filter_', tooltip='filter')])
-        gl.pady()
+        fl.query_input_lo()
+        layout[-1].extend([gl.icon_button(icon=self.FILTER_ICON, key='_filter_', tooltip='filter')])
         gl._id_lo()
         gl.output_msg_lo()
         gl.schema_lo(schema)
@@ -581,9 +695,9 @@ class GUI(UIConfig, Messaging):
 
             # choose _id
             if _first:
-                all_ids = list(self.db)
-                selectec_ids = all_ids
-                self._update_selected_ids(window, selectec_ids)
+                self.all_ids = list(self.db)
+                self.filtered_ids = self.all_ids
+                self._update_selected_ids(window)
 
             # specific filters
             if event == '_filter_':
@@ -595,11 +709,23 @@ class GUI(UIConfig, Messaging):
                         for _id in self.db:
                             if _id[2:4] == initials:
                                 filtered_ids.append(_id)
-                        selectec_ids = filtered_ids
+                        self.filtered_ids = filtered_ids
                     else:
-                        selectec_ids = all_ids
+                        self.filtered_ids = self.all_ids
+
+                # query
+                query = values['_query_'].strip()
+                if query:
+                    qr = Query()
+                    q_list = qr.query_parser(query)
+                    if q_list:
+                        selected_db = {k: self.db[k] for k in self.filtered_ids}
+                        self.filtered_ids = sorted(qr.quert_filter(q_list, selected_db))
+                    else:
+                        self.win_msg(window, "bad query")
+
                 # set selected _id's
-                self._update_selected_ids(window, selectec_ids)
+                self._update_selected_ids(window)
 
             # set _id and show data
             if event == "_id":
@@ -952,8 +1078,8 @@ class GUI(UIConfig, Messaging):
         if not perfect:
             self.popup_warning()
 
-    def _update_selected_ids(self, window, selectec_ids):
-        window['_id'].update(value='', values=[''] + list(selectec_ids))
+    def _update_selected_ids(self, window):
+        window['_id'].update(value='', values=[''] + list(self.filtered_ids))
 
     def build_skel_dict(self):
         exemplar = EXEMPLARS[self.head_data_title]
@@ -973,8 +1099,10 @@ class GUI(UIConfig, Messaging):
                 skel_dict.update({k: str()})
         return skel_dict
 
+
 def main():
     GUI()()
+
 
 if __name__ == '__main__':
     main()
