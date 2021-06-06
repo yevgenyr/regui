@@ -335,6 +335,10 @@ class EntryLayouts(UIConfig):
     def input_lo(self):
         self.layout[-1].extend([sg.Input('', size=self.input_size, key=self.entry)])
 
+    def integer_input_lo(self):
+        self.layout[-1].extend([sg.Input('', size=self.integer_input_size, key=self.entry,
+                                         background_color=self.GREEN_COLOR)])
+
     def allowed_list_lo(self, allowed_list):
         self.layout[-1].extend([sg.DropDown(allowed_list, key=self.entry, readonly=True)])
 
@@ -351,7 +355,7 @@ class EntryLayouts(UIConfig):
         self.layout[-1].extend([self.gl.icon_button(icon=self.DATE_ICON,
                                                     key=f"@get_date_{self.entry}")])
 
-    def nested_schema_lo(self, _type='dict'):
+    def enter_schema_lo(self, _type='dict'):
         assert _type in ['dict', 'list']
         self.layout[-1].extend([sg.T(' ', text_color=self.PALE_BLUE_BUTTON_COLOR, key=self.entry)])  # key keeper
         if _type == 'list':
@@ -495,12 +499,15 @@ class GlobalLayouts(UIConfig, Messaging):
                         tooltip += f'\ntype: {ee.type}'
                         el.info_lo(tooltip)
                         if ee.schema:
-                            el.nested_schema_lo(_type=ee.type)
+                            el.enter_schema_lo(_type=ee.type)
                         elif ee.type in ['string', 'integer']:
                             if ee.eallowed:
                                 el.allowed_list_lo(ee.eallowed)
-                            else:
+                            elif ee.type == 'string':
                                 el.input_lo()
+                            elif ee.type == 'integer':
+                                el.integer_input_lo()
+
                         elif ee.type == 'date':
                             el.date_lo()
                         elif ee.type == 'list':
@@ -841,6 +848,9 @@ class GUI(UIConfig, Messaging):
                     if event in ["_save_", ":Save"]:
                         self.win_msg(window, 'updated and saved successfully!', color='green')
                         self._dump_to_local()
+                else:
+                    self.win_msg(window, 'bad inputs!')
+
 
             _first = False
 
@@ -994,6 +1004,8 @@ class GUI(UIConfig, Messaging):
                     if event in ["_save_", ":Save"]:
                         self.win_msg(window, 'updated and saved successfully!', color='green')
                         self._dump_to_local()
+                else:
+                    self.win_msg(window, 'bad inputs!')
 
             _first = False
 
@@ -1050,6 +1062,7 @@ class GUI(UIConfig, Messaging):
     def _update_data(self, window, values, schema, _data):
         # check required
         missing_required = list()
+        integer_inputs = list()
         for entry, svals in schema.items():
             if entry in IGNORE_KEYS:
                 continue
@@ -1057,11 +1070,25 @@ class GUI(UIConfig, Messaging):
                 if not values[entry].strip():
                     self.win_msg(window, f'missing required')
                     missing_required.append(entry)
+            if 'type' in svals:
+                if svals['type'] == 'integer':
+                    try:
+                        if not isinstance(eval(values[entry]), int):
+                            raise ValueError(f'"{entry}" is not an integer')
+                    except:
+                        integer_inputs.append(entry)
+
         if missing_required:
-            missing_str_list = ''.join(list(f"- {i}\n" for i in missing_required))
-            _error(f'missing required keys:\n' + missing_str_list)
+            bad_list = ''.join(list(f"- {i}\n" for i in missing_required))
+            _error(f'missing required keys:\n' + bad_list)
             return False
 
+        if integer_inputs:
+            bad_list = ''.join(list(f"- {i}\n" for i in integer_inputs))
+            _error(f'bad integer inputs:\n' + bad_list)
+            return False
+
+        # if requirements are met
         for key, val in values.items():
             if val:
                 if val.strip() and key in schema:
@@ -1071,6 +1098,13 @@ class GUI(UIConfig, Messaging):
                             _val = eval(val)
                             if isinstance(_val, list):
                                 val = _val
+                            elif isinstance(_val, int):
+                                if 'type' in schema[key]:
+                                    if schema[key]['type'] == 'integer':
+                                        val = _val
+                                elif 'anyof_type' in schema[key]:
+                                    if 'integer' in schema[key]['anyof_type']:
+                                        val = _val
                             else:
                                 val = str(val)
                         except:

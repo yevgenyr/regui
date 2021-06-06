@@ -24,6 +24,7 @@ class UIConfig:
     entry_size = (20, 1)
     types_size = (20, 1)
     input_size = (50, 1)
+    integer_input_size = (5, 1)
     multyline_size = (49, 2)
     edit_list_len = 75
 
