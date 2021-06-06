@@ -48,6 +48,7 @@ def local_loader(path):
     with open(path, 'r') as fp:
         return yaml.safe_load(fp)
 
+
 def local_dumper(path, data):
     """ dumps yaml config files, such as defaults """
     with open(path, 'w') as fp:
@@ -60,6 +61,15 @@ def parse_time(_time):
             _time = datetime.datetime.strptime(_time, TIME_FORMAT)
     atime = float(_time.strftime("%s"))
     return atime
+
+
+def _quick_error(msg):
+    sg.popup_error(msg,
+                   non_blocking=True, auto_close=True, auto_close_duration=3)
+
+
+def _error(msg):
+    sg.popup_error(msg, non_blocking=True)
 
 
 class DataBase:
@@ -88,8 +98,8 @@ class DataBase:
 
 class Messaging:
     @staticmethod
-    def win_msg(window, msg, key="_OUTPUT_"):
-        window[key].update(value=msg)
+    def win_msg(window, msg, key="_OUTPUT_", color='red'):
+        window[key].update(value=msg, text_color=color)
 
     @staticmethod
     def r_msg(msg):
@@ -230,6 +240,7 @@ class EntryElements(Messaging):
         self.type = None  # str
         self.anyof_type = None  # list
         self.schema = None  # dict
+        self.eallowed = None  # list
 
         self.errors = list()
 
@@ -307,40 +318,49 @@ class EntryLayouts(UIConfig):
 
     def required_entry_lo(self):
         self.layout.append([sg.Text('*', text_color='red')])
-        self.layout[-1].extend([sg.Text(self.entry, size=self.required_entry_size)])
+        self.layout[-1].extend([sg.Text(self.entry, size=self.entry_size)])
 
     def entry_lo(self):
-        self.layout.append([sg.Text(self.entry, size=self.entry_size)])
+        self.layout.append([sg.Text(' ')])
+        self.layout[-1].extend([sg.Text(self.entry, size=self.entry_size)])
 
     def types_lo(self, types: [list, str]):
         if isinstance(types, str):
             types = [types]
-        self.layout[-1].extend([sg.Text(str(types), size=self.types_size, font=self.font_8)])
+        self.layout[-1].extend([sg.Text(str(types), size=self.types_size, font=self.font_6)])
 
-    def input_lo(self, tooltip):
-        self.layout[-1].extend([sg.Input('', size=self.input_size, tooltip=tooltip, key=self.entry)])
+    def info_lo(self, tooltip):
+        self.layout[-1].extend([self.gl.icon_button(icon=self.INFO_ICON, key=f"@info_{self.entry}", tooltip=tooltip)])
 
-    def checkbox_lo(self, tooltip):
-        self.layout[-1].extend([sg.Checkbox('', tooltip=tooltip, key=self.entry)])
+    def input_lo(self):
+        self.layout[-1].extend([sg.Input('', size=self.input_size, key=self.entry)])
 
-    def multyline_lo(self, tooltip):
-        self.layout[-1].extend([sg.Multiline('', size=self.multyline_size, tooltip=tooltip, key=self.entry)])
+    def allowed_list_lo(self, allowed_list):
+        self.layout[-1].extend([sg.DropDown(allowed_list, key=self.entry, readonly=True)])
+
+    def checkbox_lo(self):
+        self.layout[-1].extend([sg.Checkbox('', key=self.entry)])
+
+    def multyline_lo(self):
+        self.layout[-1].extend([sg.Multiline('', size=self.multyline_size, key=self.entry)])
         self.layout[-1].extend([self.gl.icon_button(icon=self.EDIT_ICON,
                                                     key=f"@edit_list_{self.entry}")])
 
-    def date_lo(self, tooltip):
-        self.layout[-1].extend([sg.Input('', size=self.input_size, tooltip=tooltip, key=self.entry)])
+    def date_lo(self):
+        self.layout[-1].extend([sg.Input('', size=self.input_size, key=self.entry)])
         self.layout[-1].extend([self.gl.icon_button(icon=self.DATE_ICON,
                                                     key=f"@get_date_{self.entry}")])
 
-    def nested_schema_lo(self, tooltip):
-        self.layout[-1].extend([sg.T('explore', text_color=self.PALE_BLUE_BUTTON_COLOR, key=self.entry)])  # key keeper
-        self.layout[-1].extend([self.gl.icon_button(icon=self.ENTER_ICON,
-                                                    key=f"@enter_schema_{self.entry}",
-                                                    tooltip=tooltip)])
+    def nested_schema_lo(self, _type='dict'):
+        assert _type in ['dict', 'list']
+        self.layout[-1].extend([sg.T(' ', text_color=self.PALE_BLUE_BUTTON_COLOR, key=self.entry)])  # key keeper
+        if _type == 'list':
+            self.layout[-1].extend([self.gl.icon_button(icon=self.ENTER_LIST_ICON, key=f"@enter_schema_{self.entry}")])
+        elif _type == 'dict':
+            self.layout[-1].extend([self.gl.icon_button(icon=self.ENTER_ICON, key=f"@enter_schema_{self.entry}")])
 
 
-class GlobalLayouts(UIConfig):
+class GlobalLayouts(UIConfig, Messaging):
 
     def __init__(self, layout: list):
         """
@@ -471,31 +491,45 @@ class GlobalLayouts(UIConfig):
                         el.entry_lo()
 
                     if ee.type:
-                        el.types_lo(ee.type)
+                        # el.types_lo(ee.type)
                         tooltip += f'\ntype: {ee.type}'
-                        if ee.schema or ee.type == 'dict':
-                            el.nested_schema_lo(tooltip=tooltip)
-                        elif ee.type == 'string':
-                            el.input_lo(tooltip=tooltip)
+                        el.info_lo(tooltip)
+                        if ee.schema:
+                            el.nested_schema_lo(_type=ee.type)
+                        elif ee.type in ['string', 'integer']:
+                            if ee.eallowed:
+                                el.allowed_list_lo(ee.eallowed)
+                            else:
+                                el.input_lo()
                         elif ee.type == 'date':
-                            el.date_lo(tooltip=tooltip)
+                            el.date_lo()
                         elif ee.type == 'list':
-                            el.multyline_lo(tooltip=tooltip)
+                            el.multyline_lo()
                         elif ee.type == 'boolean':
-                            el.checkbox_lo(tooltip=tooltip)
+                            el.checkbox_lo()
 
 
                     elif ee.anyof_type:
-                        el.types_lo(ee.anyof_type)
+                        # el.types_lo(ee.anyof_type)
                         tooltip += f'\ntypes: {ee.anyof_type}'
+                        el.info_lo(tooltip)
                         if 'list' in ee.anyof_type:
-                            el.multyline_lo(tooltip=tooltip)
+                            el.multyline_lo()
                         elif 'date' in ee.anyof_type:
-                            el.date_lo(tooltip=tooltip)
+                            el.date_lo()
+                        elif ee.eallowed:
+                            el.allowed_list_lo(ee.eallowed)
                         else:
-                            el.input_lo(tooltip=tooltip)
+                            el.input_lo()
+                else:
+                    msg = f'bad schema: no "type" entry in {entry}'
+                    self.y_msg(msg)
+                    # _error(msg)
 
-        self.layout.append([sg.Column(box, size=self.schema_box_size, scrollable=True, vertical_scroll_only=True)])
+        col = list()
+        col.append([sg.Column(box, size=self.schema_box_size, pad=(1, 5),
+                              scrollable=True, vertical_scroll_only=True)])
+        self.layout.append([sg.Frame('', col, relief=sg.RELIEF_RAISED, border_width=4)])
 
 
 class FilterLayouts(UIConfig):
@@ -763,7 +797,7 @@ class GUI(UIConfig, Messaging):
                     try:
                         nested_schema = schema[nested_entry]["schema"]
                     except:
-                        self._quick_error(f"no defined schema.SCHEMA for '{nested_entry}'")
+                        _quick_error(f"no defined schema.SCHEMA for '{nested_entry}'")
                         continue
                     #  TODO - fix in SCHEMA so after list of dict it is be clear that there is a need to dig deeper
                     if 'schema' in nested_schema and 'type' in nested_schema:
@@ -797,14 +831,16 @@ class GUI(UIConfig, Messaging):
             # update , save
             if event in ["_update_", "_finish_", "_save_", ":Save"]:
                 _data = self._get_nested_data()
-                self._update_data(values, schema, _data)
+                _pass = self._update_data(window, values, schema, _data)
+                if _pass:
+                    self.win_msg(window, 'updated successfully!', color='green')
+                    if event == "_finish_":
+                        window.Close()
+                        break
 
-                if event == "_finish_":
-                    window.Close()
-                    break
-
-                if event in ["_save_", ":Save"]:
-                    self._dump_to_local()
+                    if event in ["_save_", ":Save"]:
+                        self.win_msg(window, 'updated and saved successfully!', color='green')
+                        self._dump_to_local()
 
             _first = False
 
@@ -900,7 +936,7 @@ class GUI(UIConfig, Messaging):
                             new_index_list = self._get_nested_list_entries(_data)
                             window['_nested_index_'].update(values=new_index_list, value=last_index)
                         elif len(_data) == 1:
-                            self._quick_error('will not delete last item in list')
+                            _quick_error('will not delete last item in list')
                             continue
 
 
@@ -949,12 +985,15 @@ class GUI(UIConfig, Messaging):
             if event in ["_update_", "_finish_", "_save_", ":Save"]:
                 # -- always update first
                 _data = self._get_nested_data()
-                self._update_data(values, nested_schema, _data)
-                if event == "_finish_":
-                    window.Close()
-                    break
-                if event in ["_save_", ":Save"]:
-                    self._dump_to_local()
+                _pass = self._update_data(window, values, nested_schema, _data)
+                if _pass:
+                    if event == "_finish_":
+                        self.win_msg(window, 'updated successfully!', color='green')
+                        window.Close()
+                        break
+                    if event in ["_save_", ":Save"]:
+                        self.win_msg(window, 'updated and saved successfully!', color='green')
+                        self._dump_to_local()
 
             _first = False
 
@@ -987,11 +1026,7 @@ class GUI(UIConfig, Messaging):
                     return data
 
                 except:
-                    self._quick_error("must represent a valid yaml list format")
-
-    def _quick_error(self, msg):
-        sg.popup_error(msg,
-                       non_blocking=True, auto_close=True, auto_close_duration=3)
+                    _quick_error("must represent a valid yaml list format")
 
     def _get_selected_index(self, values):
         return int(values['_nested_index_'].strip())
@@ -1012,7 +1047,21 @@ class GUI(UIConfig, Messaging):
         self.db = load(self.db_fpath)
         sg.popup_quick(f"Saved!")
 
-    def _update_data(self, values, schema, _data):
+    def _update_data(self, window, values, schema, _data):
+        # check required
+        missing_required = list()
+        for entry, svals in schema.items():
+            if entry in IGNORE_KEYS:
+                continue
+            if svals['required']:
+                if not values[entry].strip():
+                    self.win_msg(window, f'missing required')
+                    missing_required.append(entry)
+        if missing_required:
+            missing_str_list = ''.join(list(f"- {i}\n" for i in missing_required))
+            _error(f'missing required keys:\n' + missing_str_list)
+            return False
+
         for key, val in values.items():
             if val:
                 if val.strip() and key in schema:
@@ -1028,7 +1077,7 @@ class GUI(UIConfig, Messaging):
                             val = str(val)
                     except:
                         self.r_msg(f"ErrorEvalList:  {key}")
-                        self._quick_error(f"Error saving - see ")
+                        _quick_error(f"Error saving - see log ")
                         _pass = False
                     if _pass:
                         if isinstance(_data, list):
@@ -1036,6 +1085,11 @@ class GUI(UIConfig, Messaging):
                             _data[index].update({key: val})
                         else:
                             _data.update({key: val})
+            else:
+                if key in _data:
+                    _data.update({key: ''})
+
+        return True
 
     def _select_date(self, window, event):
         date = sg.popup_get_date()
@@ -1052,7 +1106,7 @@ class GUI(UIConfig, Messaging):
             data = eval(values[entry])
             assert isinstance(data, list)
         except:
-            self._quick_error("must represent a valid list-like string format")
+            _quick_error("must represent a valid list-like string format")
             return
         data = self.edit_list_ui(entry, data)
         window[entry].update(value=data)

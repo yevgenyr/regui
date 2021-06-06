@@ -7,6 +7,8 @@ def _icon(fname):
 class UIConfig:
     # fonts
     font_style = 'courier 10 pitch'
+    font_6 = (font_style, 6)
+    font_6b = (font_style, 6, 'bold')
     font_8 = (font_style, 8)
     font_8b = (font_style, 8, 'bold')
     font_9 = (font_style, 9)
@@ -15,15 +17,14 @@ class UIConfig:
     font_11b = (font_style, 11, 'bold')
 
     # standard_sizes
-    schema_box_size = (1000, 600)
+    schema_box_size = (800, 500)
     selector_short_size = (20, 8)
     selector_long_size = (40, 8)
     selector_index_size = (3, 8)
-    required_entry_size = (17, 1)
     entry_size = (20, 1)
     types_size = (20, 1)
-    input_size = (60, 1)
-    multyline_size = (60, 2)
+    input_size = (50, 1)
+    multyline_size = (49, 2)
     edit_list_len = 75
 
 
@@ -48,9 +49,11 @@ class UIConfig:
 
     LOGO_ICON = _icon('regolith-logo.png')
     ENTER_ICON = _icon('enter.png')
+    ENTER_LIST_ICON = _icon('enter_list.png')
     DATE_ICON = _icon('date.png')
     FILTER_ICON = _icon('filter.png')
     EDIT_ICON = _icon('edit.png')
+    INFO_ICON = _icon('info.png')
 
     # global setup
     sg.change_look_and_feel(gui_theme_4)
@@ -60,7 +63,7 @@ class UIConfig:
     sg.set_options(text_color=BLACK_COLOR)
     sg.set_options(font=font_11)
     sg.set_options(element_padding=(5, 2))
-    sg.set_options(border_width=2)
+    sg.set_options(border_width=1)
     sg.set_options(use_ttk_buttons=True)
     sg.set_options(ttk_theme="clam")  # 'clam', 'alt', 'default', 'classic'
 
