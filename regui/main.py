@@ -206,6 +206,13 @@ class Query(Messaging):
                         elif q == self.EQUAL:
                             if v == items[k]:
                                 _matches.append(_id)
+                                continue
+                            try:
+                                if eval(v) == items[k]:
+                                    _matches.append(_id)
+                                    continue
+                            except:
+                                pass
 
                     except:
                         sg.popup_error("ERROR: query error", non_blocking=True, auto_close_duration=3)
@@ -783,6 +790,8 @@ class GUI(UIConfig, Messaging):
                         self.filtered_ids = sorted(qr.quert_filter(q_list, selected_db))
                     else:
                         self.win_msg(window, "bad query")
+                else:
+                    self.filtered_ids = self.all_ids
 
                 # set selected _id's
                 self._update_selected_ids(window)
